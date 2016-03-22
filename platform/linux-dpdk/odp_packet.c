@@ -313,6 +313,7 @@ static inline void *packet_offset_to_ptr(odp_packet_t pkt, uint32_t *len,
 
 void *odp_packet_l2_ptr(odp_packet_t pkt, uint32_t *len)
 {
+#if 0
 	const size_t offset = odp_packet_l2_offset(pkt);
 	odp_packet_hdr_t *pkt_hdr = odp_packet_hdr(pkt);
 	if (!odp_packet_hdr_has_l2(pkt_hdr))
@@ -320,15 +321,33 @@ void *odp_packet_l2_ptr(odp_packet_t pkt, uint32_t *len)
 	if (packet_parse_not_complete(pkt_hdr))
 		_odp_packet_parse(pkt_hdr);
 	return packet_offset_to_ptr(pkt, len, offset);
+#else
+    /* TODO: accelerate L2/L3/L4 data access. Most NICs is able
+     *       to do such parsing so propably it could be used here.
+     *       Also in most cases (event with IP options) all headers
+     *       should fit in the first mbuf (it can be guaranteed by
+     *       ODP/DPDK configs under performance compilation warnings)
+     *       so generic offset calculation seems to be not needed.
+     */
+    //return odp_packet_offset(pkt, 0, len, NULL);
+	struct rte_mbuf *mb = &(odp_packet_hdr(pkt)->buf_hdr.mb);
+    if (odp_unlikely(len != NULL))
+        *len = mb->data_len;
+    return (void *)(rte_pktmbuf_mtod(mb, char *));
+#endif
 }
 
 uint32_t odp_packet_l2_offset(odp_packet_t pkt)
 {
 	odp_packet_hdr_t *pkt_hdr = odp_packet_hdr(pkt);
+#if 0
 	if (!odp_packet_hdr_has_l2(pkt_hdr))
 		return ODP_PACKET_OFFSET_INVALID;
+#endif
 	if (packet_parse_not_complete(pkt_hdr))
 		_odp_packet_parse(pkt_hdr);
+	if (!odp_packet_hdr_has_l2(pkt_hdr))
+		return ODP_PACKET_OFFSET_INVALID;
 	return pkt_hdr->l2_offset;
 }
 
